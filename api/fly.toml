@@ -1,0 +1,48 @@
+# Fly.io deployment — one app, three process groups sharing this Dockerfile's
+# image (api/Dockerfile), mirroring docker-compose.yml's api/consumer/
+# agent-worker split. Each process group gets its own machine; only `api`
+# is exposed over HTTP. See DEPLOY.md at the repo root for the full runbook.
+
+app = "loop-api-femimeduna"
+primary_region = "iad"    # pick whichever region is closest to you
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8000"
+
+[processes]
+  api = "node dist/server.js"
+  consumer = "node dist/consumer.js"
+  agent-worker = "node dist/agentWorker.js"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+# Only the api process group is reachable over HTTP — consumer and
+# agent-worker are internal-only, no ports to expose.
+[[services]]
+  processes = ["api"]
+  internal_port = 8000
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "get"
+    path = "/health"

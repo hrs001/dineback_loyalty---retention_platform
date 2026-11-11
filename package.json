@@ -1,0 +1,21 @@
+{
+  "name": "loop",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "api",
+    "dashboard"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=api",
+    "build:api": "npm run build --workspace=api",
+    "test:api": "npm run test --workspace=api",
+    "lint:api": "npm run lint --workspace=api",
+    "dev:dashboard": "npm run dev --workspace=dashboard",
+    "compose:up": "docker compose up --build",
+    "compose:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,86 @@
+services:
+  mongo:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: >
+        mongosh --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) }"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  api:
+    build:
+      context: ./api
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      MONGO_URI: mongodb://mongo:27017/loop?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      PORT: "8000"
+      TENANT_STOREFRONT_KEYS: dev-storefront-key:rest_demo
+      MARKETPLACE_WEBHOOK_SECRETS: rest_demo:dev-marketplace-secret
+      TENANT_ADMIN_KEYS: dev-admin-key:rest_demo
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      NODE_ENV: production
+    ports:
+      - "8000:8000"
+
+  consumer:
+    build:
+      context: ./api
+    command: ["node", "dist/consumer.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      MONGO_URI: mongodb://mongo:27017/loop?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      NODE_ENV: production
+
+  agent-worker:
+    build:
+      context: ./api
+    command: ["node", "dist/agentWorker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      MONGO_URI: mongodb://mongo:27017/loop?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      TENANT_STOREFRONT_KEYS: dev-storefront-key:rest_demo
+      TENANT_ADMIN_KEYS: dev-admin-key:rest_demo
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
+      NODE_ENV: production
+
+  dashboard:
+    build:
+      context: ./dashboard
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo_data:
